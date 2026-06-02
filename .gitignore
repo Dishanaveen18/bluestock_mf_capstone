@@ -1,0 +1,5 @@
+data/db/*.db
+*.db
+.ipynb_checkpoints/
+__pycache__/
+.env
