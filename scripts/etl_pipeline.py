@@ -1,60 +1,35 @@
 # scripts/etl_pipeline.py
-import sqlite3
+import os
 import pandas as pd
 from pathlib import Path
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-DB_PATH = BASE_DIR / "data" / "db" / "bluestock_mf.db"
-SCHEMA_PATH = BASE_DIR / "sql" / "schema.sql"
-PROCESSED_DIR = BASE_DIR / "data" / "processed"
-RAW_DIR = BASE_DIR / "data" / "raw"
+# 1. Setup paths relative to your project layout
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DB_PATH = PROJECT_ROOT / "bluestock_mf.db"
+SCHEMA_PATH = PROJECT_ROOT / "sql" / "schema.sql"
 
-def build_database_infrastructure():
-    print("Spawning structural database elements...")
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+engine = create_engine(f"sqlite:///{DB_PATH}")
+
+print("--- 🛠️ Initializing Schema Setup via Python Engine ---")
+
+# 2. Read the raw schema.sql file content directly using Python
+if SCHEMA_PATH.exists():
+    with open(SCHEMA_PATH, 'r') as file:
+        schema_sql = file.read()
     
-    # Establish base layout schemas via sqlite driver connection
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    with open(SCHEMA_PATH, 'r') as f:
-        cursor.executescript(f.read())
-    conn.commit()
-    conn.close()
-    print("Database structural tables constructed cleanly.")
+    # Execute the raw SQL schema statements inside your database file safely
+    with engine.connect() as conn:
+        # SQLite allows executing multiple statements if split correctly
+        for statement in schema_sql.split(';'):
+            clean_statement = statement.strip()
+            if clean_statement:
+                conn.execute(text(clean_statement))
+        conn.commit()
+    print(" ✅ Database tables dropped and recreated cleanly from sql/schema.sql")
+else:
+    print(f"❌ ERROR: Cannot find schema file at {SCHEMA_PATH.resolve()}")
 
-def populate_database_tables():
-    print("Injecting tables into local storage tables...")
-    engine = create_engine(f"sqlite:///{DB_PATH}")
-    
-    # 1. Populate dim_fund Lookup Table directly from master raw data list
-    # Adjust filename to match whatever your provided master file path is named
-    master_file = RAW_DIR / "fund_master.csv"
-    if master_file.exists():
-        df_master = pd.read_csv(master_file)
-        df_master.columns = df_master.columns.str.lower().str.strip()
-        df_master.to_sql('dim_fund', engine, if_exists='append', index=False)
-        print("Added lookup indices into 'dim_fund'")
-
-    # 2. Populate processed metrics fact data dataframes
-    mappings = {
-        'clean_nav.csv': 'fact_nav',
-        'clean_transactions.csv': 'fact_transactions',
-        'clean_performance.csv': 'fact_performance'
-    }
-    
-    for filename, table_name in mappings.items():
-        file_path = PROCESSED_DIR / filename
-        if file_path.exists():
-            df = pd.read_csv(file_path)
-            # Match date column types to string formats compatible with SQLite
-            for col in df.columns:
-                if 'date' in col:
-                    df[col] = pd.to_datetime(df[col]).dt.strftime('%Y-%m-%d')
-            df.to_sql(table_name, engine, if_exists='append', index=False)
-            print(f"Injected rows from {filename} into database table '{table_name}'")
-
-if __name__ == "__main__":
-    build_database_infrastructure()
-    populate_database_tables()
-    print("\nDay 2 Database Initialization Complete!")
+# --- Your existing pandas dataframe loading code follows below ---
+# df_nav = pd.read_csv(PROJECT_ROOT / "data/processed/clean_nav.csv")
+# df_nav.to_sql('fact_nav', engine, if_exists='append', index=False)

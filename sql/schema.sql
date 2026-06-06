@@ -5,14 +5,24 @@ DROP TABLE IF EXISTS fact_transactions;
 DROP TABLE IF EXISTS fact_performance;
 DROP TABLE IF EXISTS dim_fund;
 
+-- 1. Updated with all 15 columns discovered in your raw csv file
 CREATE TABLE dim_fund (
     amfi_code INTEGER PRIMARY KEY,
-    fund_house TEXT NOT NULL,
-    scheme_name TEXT NOT NULL,
+    fund_house TEXT,
+    scheme_name TEXT,
     category TEXT,
     sub_category TEXT,
-    risk_grade TEXT,
-    aum_crore REAL
+    plan TEXT,
+    launch_date TEXT,
+    benchmark TEXT,
+    expense_ratio_pct REAL,
+    exit_load_pct REAL,
+    min_sip_amount REAL,
+    min_lumpsum_amount REAL,
+    fund_manager TEXT,
+    risk_category TEXT,
+    sebi_category_code TEXT,
+    aum_crore REAL -- Kept as a safe structural anchor placeholder
 );
 
 CREATE TABLE fact_nav (
@@ -24,15 +34,25 @@ CREATE TABLE fact_nav (
     FOREIGN KEY (amfi_code) REFERENCES dim_fund(amfi_code)
 );
 
+-- Updated Star Schema: fact_transactions with complete demographic support
+DROP TABLE IF EXISTS fact_transactions;
+
 CREATE TABLE fact_transactions (
     transaction_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    amfi_code INTEGER,
-    investor_id INTEGER,
+    investor_id TEXT,
     transaction_date TEXT,
+    amfi_code INTEGER,
     transaction_type TEXT,
     amount REAL,
     state TEXT,
-    FOREIGN KEY (amfi_code) REFERENCES dim_fund(amfi_code)
+    city TEXT,
+    city_tier TEXT,
+    age_group TEXT,
+    gender TEXT,
+    annual_income_lakh REAL,
+    payment_mode TEXT,
+    kyc_status TEXT,
+    FOREIGN KEY(amfi_code) REFERENCES dim_fund(amfi_code)
 );
 
 CREATE TABLE fact_performance (
